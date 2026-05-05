@@ -1,51 +1,773 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>cd-demo placeholder</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Current CD Flow</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
 <style>
-  body { font-family: system-ui, sans-serif; margin: 2rem; color: #ddd; background: #111; }
-  .version-banner { font-size: 0.85rem; opacity: 0.7; margin-bottom: 1.5rem; }
-  .version-banner span { margin-right: 0.5rem; }
-  .step-counter { margin: 1rem 0; }
-  button { padding: 0.4rem 0.8rem; margin-right: 0.5rem; }
-  button[disabled] { opacity: 0.4; cursor: not-allowed; }
+  :root {
+    --bg:        #0f0f0f;
+    --surface:   #161616;
+    --surface2:  #1e1e1e;
+    --border:    #2a2a2a;
+    --muted:     #5a5a5a;
+    --body:      #b8b8b8;
+    --heading:   #e8e8e8;
+    --accent:    #e84040;
+    --amber:     #d97706;
+    --amber-bg:  rgba(217,119,6,0.10);
+    --red-bg:    rgba(232,64,64,0.10);
+    --active-node: #e84040;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--body);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ─────────────────────────────────────────────── */
+  .topbar {
+    height: 48px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    flex-shrink: 0;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .topbar-title {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--heading);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; }
+    50% { opacity: 0.4; }
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .version-banner {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 10px;
+  }
+  .version-banner span { color: var(--body); }
+
+  .nav-links {
+    display: flex;
+    gap: 4px;
+  }
+  .nav-link {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-link:hover { color: var(--body); border-color: var(--border); }
+  .nav-link.active {
+    color: var(--accent);
+    border-color: rgba(232,64,64,0.3);
+    background: rgba(232,64,64,0.06);
+  }
+
+  /* ── LAYOUT ──────────────────────────────────────────────── */
+  .layout {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 48px);
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── DIAGRAM PANE ────────────────────────────────────────── */
+  .diagram-pane {
+    flex: 0 0 60%;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .diagram-pane::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, rgba(232,64,64,0.03) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #mermaid-container {
+    width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #mermaid-container svg {
+    max-width: 100%;
+    max-height: calc(100vh - 160px);
+  }
+
+  /* ── INFO PANEL ──────────────────────────────────────────── */
+  .info-panel {
+    flex: 0 0 40%;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 28px 20px;
+    overflow-y: auto;
+    gap: 20px;
+  }
+
+  .step-counter {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .step-counter strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .step-title {
+    font-family: var(--font-sans);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--heading);
+    line-height: 1.3;
+    margin-top: 4px;
+    transition: opacity 0.2s;
+  }
+
+  .step-description {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--body);
+    transition: opacity 0.2s;
+  }
+
+  .callouts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .callouts-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    line-height: 1.5;
+    font-size: 13px;
+    transition: transform 0.15s, opacity 0.15s;
+    animation: callout-in 0.25s ease backwards;
+  }
+
+  @keyframes callout-in {
+    from { opacity: 0; transform: translateX(8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .callout.manual {
+    background: var(--red-bg);
+    border-color: rgba(232,64,64,0.2);
+    color: #e89090;
+  }
+  .callout.issue {
+    background: var(--amber-bg);
+    border-color: rgba(217,119,6,0.2);
+    color: #c9a050;
+  }
+
+  .callout-chip {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .callout.manual .callout-chip {
+    background: rgba(232,64,64,0.25);
+    color: var(--accent);
+  }
+  .callout.issue .callout-chip {
+    background: rgba(217,119,6,0.25);
+    color: var(--amber);
+  }
+
+  /* ── BOTTOM CONTROLS ─────────────────────────────────────── */
+  .controls {
+    height: 72px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 24px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .progress-bar-wrap {
+    width: 320px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 7px 20px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--body);
+    cursor: pointer;
+    transition: all 0.15s;
+    outline: none;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--muted);
+    color: var(--heading);
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .step-indicator {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 50px;
+    text-align: center;
+  }
+
+  /* ── MERMAID OVERRIDES ───────────────────────────────────── */
+  #mermaid-container .node {
+    cursor: pointer;
+  }
+
+  #mermaid-container .node rect,
+  #mermaid-container .node circle,
+  #mermaid-container .node polygon {
+    fill: #1a1a1a !important;
+    stroke: #3a3a3a !important;
+    stroke-width: 1.5px !important;
+    transition: filter 0.15s;
+  }
+
+  #mermaid-container .node.active rect,
+  #mermaid-container .node.active circle,
+  #mermaid-container .node.active polygon {
+    fill: rgba(232,64,64,0.15) !important;
+    stroke: var(--accent) !important;
+    stroke-width: 2px !important;
+    filter: drop-shadow(0 0 8px rgba(232,64,64,0.4));
+  }
+
+  #mermaid-container .nodeLabel,
+  #mermaid-container .label {
+    color: #b8b8b8 !important;
+    font-family: var(--font-mono) !important;
+    font-size: 12px !important;
+  }
+
+  #mermaid-container .node.active .nodeLabel,
+  #mermaid-container .node.active .label {
+    color: #f0a0a0 !important;
+  }
+
+  #mermaid-container .edgePath .path {
+    stroke: #3a3a3a !important;
+    stroke-width: 1.5px !important;
+  }
+
+  #mermaid-container .arrowheadPath {
+    fill: #3a3a3a !important;
+    stroke: none !important;
+  }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    html, body { overflow: auto; }
+
+    .layout { height: auto; }
+    .main { flex-direction: column; }
+
+    .diagram-pane {
+      flex: none;
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+      height: 280px;
+    }
+
+    #mermaid-container svg {
+      max-height: 250px;
+    }
+
+    .info-panel {
+      flex: none;
+      width: 100%;
+    }
+
+    .controls { height: auto; padding: 12px; }
+    .progress-bar-wrap { width: 240px; }
+
+    .topbar .version-banner { display: none; }
+    .nav-link { padding: 4px 7px; font-size: 10px; }
+  }
 </style>
 </head>
+
 <body>
-  <header class="version-banner">
-    <span>sha:</span><span id="sha-display">—</span>
-    <span>env:</span><span id="env-display">—</span>
-    <span>deployed:</span><span id="ts-display">—</span>
-  </header>
 
-  <h1>cd-demo placeholder</h1>
-  <p>Wireframe drops in here in Step 4/5/6.</p>
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="status-dot"></div>
+    <span class="topbar-title">Current CD Flow</span>
+  </div>
+  <div class="topbar-right">
+    <div class="version-banner">
+      <span>sha:</span><span id="sha-display">—</span>
+      <span>env:</span><span>production</span>
+      <span>deployed:</span><span id="ts-display">—</span>
+    </div>
+    <nav class="nav-links" aria-label="Demo navigation">
+      <a href="#" class="nav-link active">Current</a>
+      <a href="#" class="nav-link">MVP</a>
+      <a href="#" class="nav-link">Ideal</a>
+    </nav>
+  </div>
+</header>
 
-  <div class="step-counter">Step <strong id="step-num">1</strong> / <span id="step-total">3</span></div>
-  <div>
-    <button id="btn-prev" disabled>Prev</button>
-    <button id="btn-next">Next</button>
+<!-- LAYOUT -->
+<div class="layout">
+  <div class="main">
+
+    <!-- DIAGRAM -->
+    <div class="diagram-pane" aria-label="Pipeline diagram">
+      <div id="mermaid-container">
+        <div id="mermaid-graph" class="mermaid">
+flowchart TD
+  Z["👀 Wait for release queue"]:::human
+  A["🔀 Merge to main"]
+  B["⚙️ CI runs"]
+  C["🖱️ Run Release workflow"]
+  D["🏷️ Tag created"]
+  E["🚧 Deploy staging"]
+  F["🚀 Deploy prod"]
+  G["🤞 Live (and hoping)"]
+
+  Z -.-> A
+  A --> B
+  B --> C
+  C --> D
+  D --> E & F
+  E --> G
+  F --> G
+
+  classDef human fill:#1a1a1a,stroke:#555,stroke-width:1.5px,stroke-dasharray:5 4,color:#888
+        </div>
+      </div>
+    </div>
+
+    <!-- INFO PANEL -->
+    <aside class="info-panel" aria-live="polite" aria-label="Step details">
+      <div>
+        <div class="step-counter">Step <strong id="step-num">1</strong> / <span id="step-total">7</span></div>
+        <h2 class="step-title" id="step-title">Loading…</h2>
+      </div>
+      <p class="step-description" id="step-desc"></p>
+      <div class="callouts" id="callouts-container">
+        <div class="callouts-label">Friction points</div>
+        <div id="callouts-list"></div>
+      </div>
+    </aside>
+
   </div>
 
-<script>
-const TOTAL = 3;
-let current = 1;
-const counter = document.getElementById('step-num');
-const prev = document.getElementById('btn-prev');
-const next = document.getElementById('btn-next');
-function render() {
-  counter.textContent = String(current);
-  prev.disabled = current === 1;
-  next.disabled = current === TOTAL;
-}
-prev.addEventListener('click', () => { if (current > 1) { current--; render(); } });
-next.addEventListener('click', () => { if (current < TOTAL) { current++; render(); } });
-render();
+  <!-- CONTROLS -->
+  <footer class="controls">
+    <div class="progress-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progress-bar" aria-valuenow="14">
+      <div class="progress-bar-fill" id="progress-fill" style="width:14%"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-prev" aria-label="Previous step">← Prev</button>
+      <span class="step-indicator" id="step-indicator">1 / 7</span>
+      <button class="btn" id="btn-next" aria-label="Next step">Next →</button>
+    </div>
+  </footer>
+</div>
 
-document.getElementById('sha-display').textContent = 'placeholder';
-document.getElementById('ts-display').textContent = new Date().toISOString();
-document.getElementById('env-display').textContent = 'local';
+<script>
+// ── DATA ───────────────────────────────────────────────────────────────────
+const STEPS_DATA = {
+  "demo": "current",
+  "title": "Current CD Flow",
+  "subtitle": "Manual, painful, every release is a human in the loop",
+  "callout_types": {
+    "manual": { "label": "MANUAL", "color": "red" },
+    "issue":  { "label": "ISSUE",  "color": "amber" }
+  },
+  "steps": [
+    {
+      "id": "step-0", "nodeId": "Z",
+      "title": "Waiting for the release queue",
+      "description": "Before merging, the developer checks #sw-eng-release. If others are already queued, they have to wait — unable to merge, unable to fully move on. Attention splits between real work and watching Slack for their turn.",
+      "callouts": [
+        { "type": "manual", "text": "Developer must check #sw-eng-release and wait for others ahead in the queue" },
+        { "type": "issue",  "text": "Queue is a Slack channel — no tooling, no state, just messages to scroll and interpret" },
+        { "type": "issue",  "text": "Waiting blocks the merge entirely, creating a hard dependency on other people's release pace" },
+        { "type": "issue",  "text": "Deep focus becomes impossible — attention keeps snapping back to Slack to watch for the queue clearing" },
+        { "type": "issue",  "text": "Context switching starts here — before a single line of release work has begun" }
+      ]
+    },
+    {
+      "id": "step-1", "nodeId": "A",
+      "title": "Merge to main",
+      "description": "Once the queue is clear, the developer merges. CI triggers automatically — but from here on, every step downstream depends on a human staying engaged.",
+      "callouts": [
+        { "type": "manual", "text": "Developer posts in #sw-eng-release to claim their slot — a Slack message is the release record" },
+        { "type": "issue",  "text": "No automated link between merge and release — intent lives in a chat thread" }
+      ]
+    },
+    {
+      "id": "step-2", "nodeId": "B",
+      "title": "CI runs",
+      "description": "Lint, typecheck, unit tests, build, integration, chromatic, e2e — affected projects only. Takes ~15–25 min on portal.",
+      "callouts": [
+        { "type": "manual", "text": "Developer waits for green tick before doing anything else" },
+        { "type": "issue",  "text": "A single flaky test blocks the whole pipeline; the response is rerun-until-green" },
+        { "type": "issue",  "text": "When CI fails, no notification — author must check manually" }
+      ]
+    },
+    {
+      "id": "step-3", "nodeId": "C",
+      "title": "Engineer manually clicks Run workflow",
+      "description": "Someone has to navigate to GitHub Actions, find the Release workflow, click Run workflow, fill the form, click again. Multiple times a day, every day.",
+      "callouts": [
+        { "type": "manual", "text": "Human navigates GitHub Actions UI, clicks Run workflow" },
+        { "type": "issue",  "text": "Context-switching tax repeated 10–20× per day across the team" },
+        { "type": "manual", "text": "Developer must now watch GitHub Actions to know when the release finishes — no notification, no dashboard" }
+      ]
+    },
+    {
+      "id": "step-4", "nodeId": "D",
+      "title": "Tag created",
+      "description": "release-it walks affected projects, bumps versions, creates one git tag per project (tag/portal/v…), and pushes a commit per package.",
+      "callouts": [
+        { "type": "issue",  "text": "Bump strategy is minor-only — no patch/major detection from conventional commits" },
+        { "type": "issue",  "text": "One commit per package = noisy git history" }
+      ]
+    },
+    {
+      "id": "step-5", "nodeId": "E",
+      "title": "Deploy staging",
+      "description": "Tag triggers deploy-staging job inside the same workflow. Image deploys to staging immediately.",
+      "callouts": [
+        { "type": "issue", "text": "Staging is customer-facing — every release exposes customers to potentially-broken code" },
+        { "type": "issue", "text": "No soak window, no sanity check, no automated smoke test against staging" }
+      ]
+    },
+    {
+      "id": "step-6", "nodeId": "F",
+      "title": "Deploy prod",
+      "description": "Staging and prod deploy simultaneously in the same workflow run. There is no gate, no soak period, no canary — they go out together.",
+      "callouts": [
+        { "type": "issue", "text": "10–20 prod deploys per day fragments CDN cache and user sessions" },
+        { "type": "issue", "text": "Blast radius is unbounded — no rollback path beyond manual revert PR + retag" },
+        { "type": "issue", "text": "Regression attribution near impossible when bugs surface 6 deploys later" }
+      ]
+    },
+    {
+      "id": "step-7", "nodeId": "G",
+      "title": "Live (and hoping)",
+      "description": "Bug discovered in prod = revert PR + manual retag + wait for CI + click again. ~20+ minutes of incident time.",
+      "callouts": [
+        { "type": "manual", "text": "Rollback requires git revert, retag, manual click — same path as a fresh release" },
+        { "type": "issue",  "text": "No release dashboard — to know what's live you check Slack scrollback" },
+        { "type": "issue",  "text": "No alert correlation — a deploy can break prod silently for hours" }
+      ]
+    }
+  ]
+};
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let currentStep = 0;
+const steps = STEPS_DATA.steps;
+const total = steps.length;
+const nodeIds = steps.map(s => s.nodeId);
+
+// ── VERSION BANNER ──────────────────────────────────────────────────────────
+document.getElementById('sha-display').textContent = 'a3f8c1d';
+const now = new Date();
+const pad = n => String(n).padStart(2, '0');
+document.getElementById('ts-display').textContent =
+  `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function renderStep(idx) {
+  const step = steps[idx];
+
+  // Counter + title + desc
+  document.getElementById('step-num').textContent = idx + 1;
+  document.getElementById('step-total').textContent = total;
+  document.getElementById('step-title').textContent = step.title;
+  document.getElementById('step-desc').textContent = step.description;
+  document.getElementById('step-indicator').textContent = `${idx + 1} / ${total}`;
+
+  // Progress
+  const pct = Math.round(((idx + 1) / total) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-bar').setAttribute('aria-valuenow', pct);
+
+  // Callouts
+  const list = document.getElementById('callouts-list');
+  list.innerHTML = '';
+  step.callouts.forEach((c, i) => {
+    const chip = STEPS_DATA.callout_types[c.type];
+    const div = document.createElement('div');
+    div.className = `callout ${c.type}`;
+    div.style.animationDelay = `${i * 60}ms`;
+    div.innerHTML = `<span class="callout-chip">${chip.label}</span><span>${c.text}</span>`;
+    list.appendChild(div);
+  });
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === total - 1;
+
+  // Highlight active node in diagram
+  highlightNode(step.nodeId);
+}
+
+// ── NODE HIGHLIGHT ──────────────────────────────────────────────────────────
+function highlightNode(activeNodeId) {
+  // Wait for SVG to exist
+  const svg = document.querySelector('#mermaid-container svg');
+  if (!svg) return;
+
+  // Mermaid assigns IDs like "flowchart-A-1", "flowchart-B-2", etc.
+  // We match by looking for the node whose label text matches the nodeId letter
+  const nodes = svg.querySelectorAll('.node');
+  nodes.forEach(node => {
+    node.classList.remove('active');
+    // Reset styles
+    const shape = node.querySelector('rect, circle, polygon, path');
+    if (shape) {
+      shape.style.fill = '#1a1a1a';
+      shape.style.stroke = '#3a3a3a';
+      shape.style.strokeWidth = '1.5px';
+      shape.style.filter = '';
+    }
+  });
+
+  // Find the node by its id attribute (mermaid uses flowchart-{nodeId}-{n})
+  const activeNode = svg.querySelector(`[id*="flowchart-${activeNodeId}-"], #flowchart-${activeNodeId}`);
+  if (activeNode) {
+    activeNode.classList.add('active');
+    const shape = activeNode.querySelector('rect, circle, polygon, path.label-container');
+    if (shape) {
+      shape.style.fill = 'rgba(232,64,64,0.15)';
+      shape.style.stroke = '#e84040';
+      shape.style.strokeWidth = '2px';
+      shape.style.filter = 'drop-shadow(0 0 10px rgba(232,64,64,0.45))';
+    }
+    // Also color the label
+    const label = activeNode.querySelector('.nodeLabel, .label');
+    if (label) label.style.color = '#f0a0a0';
+  }
+}
+
+// ── MERMAID INIT ────────────────────────────────────────────────────────────
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  themeVariables: {
+    background: '#0f0f0f',
+    primaryColor: '#1a1a1a',
+    primaryBorderColor: '#3a3a3a',
+    primaryTextColor: '#b8b8b8',
+    lineColor: '#3a3a3a',
+    edgeLabelBackground: '#0f0f0f',
+    fontFamily: 'IBM Plex Mono, monospace',
+    fontSize: '12px',
+  },
+  flowchart: {
+    curve: 'monotoneY',
+    useMaxWidth: true,
+    htmlLabels: true,
+  }
+});
+
+async function initDiagram() {
+  try {
+    const container = document.getElementById('mermaid-graph');
+    const graphDef = container.textContent;
+    const { svg } = await mermaid.render('pipeline-svg', graphDef);
+    document.getElementById('mermaid-container').innerHTML = svg;
+
+    // After render, apply initial highlight and bind click handlers
+    setTimeout(() => {
+      renderStep(currentStep);
+      bindNodeClicks();
+    }, 50);
+  } catch(e) {
+    console.error('Mermaid render error:', e);
+    renderStep(currentStep);
+  }
+}
+
+// ── NODE CLICK BINDING ────────────────────────────────────────────────────────
+function bindNodeClicks() {
+  const svg = document.querySelector('#mermaid-container svg');
+  if (!svg) return;
+
+  // Build a map of nodeId -> step index
+  const nodeToStep = {};
+  steps.forEach((s, i) => { nodeToStep[s.nodeId] = i; });
+
+  svg.querySelectorAll('.node').forEach(node => {
+    // Determine which nodeId this SVG node corresponds to
+    const matchedId = Object.keys(nodeToStep).find(id =>
+      node.id && node.id.includes('flowchart-' + id + '-') || node.id === 'flowchart-' + id
+    );
+    if (matchedId === undefined) return;
+
+    node.style.cursor = 'pointer';
+
+    // Hover shimmer
+    node.addEventListener('mouseenter', () => {
+      if (steps[currentStep].nodeId === matchedId) return;
+      const shape = node.querySelector('rect, circle, polygon');
+      if (shape) shape.style.filter = 'brightness(1.4)';
+    });
+    node.addEventListener('mouseleave', () => {
+      if (steps[currentStep].nodeId === matchedId) return;
+      const shape = node.querySelector('rect, circle, polygon');
+      if (shape) shape.style.filter = '';
+    });
+
+    node.addEventListener('click', () => {
+      const idx = nodeToStep[matchedId];
+      if (idx !== undefined) goTo(idx);
+    });
+  });
+}
+
+// ── NAVIGATION ──────────────────────────────────────────────────────────────
+function goTo(idx) {
+  if (idx < 0 || idx >= total) return;
+  currentStep = idx;
+  renderStep(currentStep);
+}
+
+document.getElementById('btn-prev').addEventListener('click', () => goTo(currentStep - 1));
+document.getElementById('btn-next').addEventListener('click', () => goTo(currentStep + 1));
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goTo(currentStep + 1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); goTo(currentStep - 1); }
+});
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', initDiagram);
 </script>
 </body>
 </html>

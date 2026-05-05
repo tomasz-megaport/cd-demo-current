@@ -1,0 +1,52 @@
+name: Deploy (manual, single env)
+
+# CURRENT-DEMO POINT:
+# Standalone manual deploy to a single env. Used when something goes wrong and
+# the engineer needs to redeploy a previous artifact — same path as a fresh
+# release: navigate to Actions, fill the form, click. No rollback button, no
+# automation, no notification.
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, prod]
+      ref:
+        description: 'Git ref to deploy (tag, branch, or sha)'
+        required: true
+        default: 'main'
+
+concurrency:
+  group: deploy-${{ inputs.env }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve sha
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        env:
+          GITHUB_SHA: ${{ steps.sha.outputs.short }}
+        run: |
+          git config user.name 'cd-demo-bot'
+          git config user.email 'cd-demo-bot@example.com'
+          deploy/deploy.sh "${{ inputs.env }}"
