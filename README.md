@@ -39,5 +39,7 @@ deploy/deploy.sh staging --dry-run
 
 ## Sibling demos
 
-- **MVP target:** [`cd-demo-mvp`](../cd-demo-mvp) — auto staging + cron-promote prod + 1-click rollback
-- **Ideal target:** [`cd-demo-ideal`](../cd-demo-ideal) — full test→staging→prod gating + flake quarantine + admin dashboard
+- **MVP target:** [cd-demo-mvp](https://tomasz-megaport.github.io/cd-demo-mvp/) — auto staging + cron-promote prod + 1-click rollback
+- **Ideal target:** [cd-demo-ideal](https://tomasz-megaport.github.io/cd-demo-ideal/) — full test→staging→prod gating + flake quarantine + admin dashboard
+
+This demo: <https://tomasz-megaport.github.io/cd-demo-current/>
