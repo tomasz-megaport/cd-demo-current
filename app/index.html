@@ -415,14 +415,21 @@
   }
 
   /* ── WORKER ANIMATION ───────────────────────────────────── */
-  #worker {
+  #worker, #worker-queue {
     position: absolute;
     pointer-events: none;
     z-index: 10;
-    transition: top 0.35s ease, left 0.35s ease;
-    display: none;
     image-rendering: pixelated;
     mix-blend-mode: screen;
+  }
+  #worker {
+    display: none;
+    transition: top 0.35s ease, left 0.35s ease;
+  }
+  #worker-queue {
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
   }
 </style>
 </head>
@@ -482,6 +489,7 @@ flowchart TD
         </div>
       </div>
       <canvas id="worker" aria-hidden="true" width="50" height="50"></canvas>
+      <canvas id="worker-queue" aria-hidden="true" width="50" height="50"></canvas>
     </div>
 
     <!-- INFO PANEL -->
@@ -785,14 +793,14 @@ document.addEventListener('keydown', e => {
 });
 
 // ── WORKER SPRITE ANIMATION ───────────────────────────────────────────────────
-// Sprite: 2048×2048, 2 cols × 2 rows = 4 frames, each 1024×1024, black bg.
-// Queue: new worker added every 30 s; resets when active step changes.
+// #worker:       single sprite, follows active step node.
+// #worker-queue: fixed on left side, accumulates 1 new worker every 30 s.
 
 const SPRITE_FRAME_W = 1024;
 const SPRITE_FRAME_H = 1024;
-const DISPLAY_SIZE   = 50;     // px per worker
-const FRAME_MS       = 200;    // ms per frame
-const QUEUE_MS       = 30000;  // ms between new worker joins
+const DISPLAY_SIZE   = 50;
+const FRAME_MS       = 200;
+const QUEUE_MS       = 30000;
 
 const FRAME_COORDS = [
   { sx: 0,    sy: 0    },
@@ -801,13 +809,14 @@ const FRAME_COORDS = [
   { sx: 1024, sy: 1024 },
 ];
 
-let workerImg      = null;
-let workerBounds   = [];
-let workerTimer    = null;
-let queueInterval  = null;
-let queueCount     = 1;
-let workerFrames   = [0];
-let currentNodeId  = null;
+let workerImg     = null;
+let workerBounds  = [];
+let workerTimer   = null;
+let workerFrame   = 0;
+let currentNodeId = null;
+
+let queueCount  = 1;
+let queueFrames = [2];   // offset so queue is out of sync with follower
 
 function detectBounds(ctx, sx, sy, sw, sh) {
   const step = 8;
@@ -842,47 +851,67 @@ function initWorker() {
     workerBounds = FRAME_COORDS.map(f =>
       detectBounds(octx, f.sx, f.sy, SPRITE_FRAME_W, SPRITE_FRAME_H)
     );
+    startQueue();
     if (workerTimer) clearInterval(workerTimer);
-    workerTimer = setInterval(drawWorkerFrame, FRAME_MS);
-    drawWorkerFrame();
+    workerTimer = setInterval(tick, FRAME_MS);
+    tick();
   };
   img.onerror = () => console.error('worker-sprite.png failed to load');
   img.src = 'worker-sprite.png';
 }
 
-function drawWorkerFrame() {
+function tick() {
+  drawFollower();
+  drawQueue();
+}
+
+function drawFollower() {
   const canvas = document.getElementById('worker');
   if (!canvas || !workerImg) return;
   const ctx = canvas.getContext('2d');
+  const fi = workerFrame;
+  const fc = FRAME_COORDS[fi];
+  const b  = workerBounds[fi] || { x: 0, y: 0, w: SPRITE_FRAME_W, h: SPRITE_FRAME_H };
+  workerFrame = (fi + 1) % FRAME_COORDS.length;
 
+  ctx.clearRect(0, 0, DISPLAY_SIZE, DISPLAY_SIZE);
+
+  const scale = Math.min(DISPLAY_SIZE / b.w, DISPLAY_SIZE / b.h);
+  const dw = Math.round(b.w * scale);
+  const dh = Math.round(b.h * scale);
+  ctx.drawImage(workerImg, fc.sx + b.x, fc.sy + b.y, b.w, b.h,
+    Math.round((DISPLAY_SIZE - dw) / 2), Math.round((DISPLAY_SIZE - dh) / 2), dw, dh);
+}
+
+function drawQueue() {
+  const canvas = document.getElementById('worker-queue');
+  if (!canvas || !workerImg) return;
+  const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let i = 0; i < queueCount; i++) {
-    const fi = workerFrames[i];
+    const fi = queueFrames[i];
     const fc = FRAME_COORDS[fi];
     const b  = workerBounds[fi] || { x: 0, y: 0, w: SPRITE_FRAME_W, h: SPRITE_FRAME_H };
-    workerFrames[i] = (fi + 1) % FRAME_COORDS.length;
+    queueFrames[i] = (fi + 1) % FRAME_COORDS.length;
 
     const scale = Math.min(DISPLAY_SIZE / b.w, DISPLAY_SIZE / b.h);
     const dw = Math.round(b.w * scale);
     const dh = Math.round(b.h * scale);
     const dx = i * DISPLAY_SIZE + Math.round((DISPLAY_SIZE - dw) / 2);
     const dy = Math.round((DISPLAY_SIZE - dh) / 2);
-
     ctx.drawImage(workerImg, fc.sx + b.x, fc.sy + b.y, b.w, b.h, dx, dy, dw, dh);
   }
 }
 
-function resetQueue() {
-  queueCount = 1;
-  workerFrames = [0];
-  if (queueInterval) clearInterval(queueInterval);
-  queueInterval = setInterval(() => {
+function startQueue() {
+  const canvas = document.getElementById('worker-queue');
+  if (canvas) { canvas.width = DISPLAY_SIZE; canvas.height = DISPLAY_SIZE; }
+  setInterval(() => {
     queueCount++;
-    workerFrames.push((queueCount * 2) % FRAME_COORDS.length);
-    const canvas = document.getElementById('worker');
-    if (canvas) canvas.width = queueCount * DISPLAY_SIZE;
-    positionWorker(currentNodeId);
+    queueFrames.push((queueCount * 2) % FRAME_COORDS.length);
+    const c = document.getElementById('worker-queue');
+    if (c) c.width = queueCount * DISPLAY_SIZE;
   }, QUEUE_MS);
 }
 
@@ -892,17 +921,10 @@ function positionWorker(nodeId) {
   const pane   = document.querySelector('.diagram-pane');
   if (!worker || !svg || !pane) return;
 
+  currentNodeId = nodeId;
   const node = svg.querySelector(`[id*="flowchart-${nodeId}-"]`) ||
                svg.querySelector(`#flowchart-${nodeId}`);
   if (!node) { worker.style.display = 'none'; return; }
-
-  if (nodeId !== currentNodeId) {
-    currentNodeId = nodeId;
-    resetQueue();
-  }
-
-  worker.width  = queueCount * DISPLAY_SIZE;
-  worker.height = DISPLAY_SIZE;
 
   const paneRect = pane.getBoundingClientRect();
   const nodeRect = node.getBoundingClientRect();
